@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; color: #1f2937; }
+    h1 { color: #1e3a8a; margin-bottom: 4px; }
+    .sub { color: #6b7280; margin-top: 0; }
+    .desks { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin: 16px 0; }
+    .desk { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; }
+    .desk b { display: block; font-size: 18px; }
+    form { display: grid; gap: 10px; border-top: 1px solid #e5e7eb; padding-top: 16px; }
+    label { display: grid; gap: 4px; font-size: 14px; }
+    input, select, button { font: inherit; padding: 8px; border-radius: 6px; border: 1px solid #9ca3af; }
+    button { background: #1e3a8a; color: white; border: none; cursor: pointer; }
+    #msg { padding: 10px; border-radius: 6px; display: none; }
+    #msg.ok { display: block; background: #dcfce7; color: #166534; }
+    #msg.err { display: block; background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <p class="sub">Book a desk in the study room. Open 07:00–22:00, at most 3 hours per booking.</p>
+
+  <div id="desks" class="desks" aria-live="polite">Loading desks…</div>
+
+  <form id="book">
+    <label>Student ID * <input name="student_id" required placeholder="11225678"></label>
+    <label>Desk * <select name="desk_id" id="desk-select" required></select></label>
+    <label>Start * <input name="start" type="datetime-local" required></label>
+    <label>End * <input name="end" type="datetime-local" required></label>
+    <button type="submit">Book this desk</button>
+    <div id="msg" role="status"></div>
+  </form>
+
+  <script>
+    const msg = document.getElementById("msg");
+    function show(text, ok) { msg.textContent = text; msg.className = ok ? "ok" : "err"; }
+
+    fetch("/api/desks").then(r => r.json()).then(desks => {
+      document.getElementById("desks").innerHTML = desks.map(d =>
+        `<div class="desk"><b>${d.name}</b>${d.zone}</div>`).join("");
+      document.getElementById("desk-select").innerHTML = desks.map(d =>
+        `<option value="${d.id}">${d.name} (${d.zone})</option>`).join("");
+    }).catch(() => {
+      document.getElementById("desks").textContent = "Could not load desks. Please reload the page.";
+    });
+
+    document.getElementById("book").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const body = { student_id: f.get("student_id"), desk_id: Number(f.get("desk_id")),
+                     start: f.get("start"), end: f.get("end") };
+      try {
+        const r = await fetch("/api/bookings", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await r.json();
+        if (r.ok) show(`Booked! Booking #${data.id}. Check in within 15 minutes of the start.`, true);
+        else show(data.message, false);
+      } catch {
+        show("No connection to the server. Please try again.", false);
+      }
+    });
+  </script>
+</body>
+</html>
