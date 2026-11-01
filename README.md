@@ -111,17 +111,22 @@ Mở PR → chấm vàng → **đỏ**: log có
 
 **Sau buổi học:** đổi lại tiêu đề (`PAGE_TITLE = "StudyRoom"`) qua một PR, xoá các nhánh demo, Stop codespace.
 
-## Tuỳ chọn: deploy từ `ci.yml` (slide 30)
-Thay cho Auto-Deploy của Render (đặt Auto-Deploy = **Off** để không deploy hai lần). Lấy **Deploy Hook** trong Render Settings, lưu vào GitHub **Settings → Secrets and variables → Actions** tên `RENDER_DEPLOY_HOOK`, rồi thêm job sau vào `.github/workflows/ci.yml`:
+## Tuỳ chọn: deploy từ `ci.yml` (slide 30) — file `.github/ci.v2.yml`
 
-```yaml
-  deploy:
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
-```
+`.github/ci.v2.yml` là bản CI **có thêm job `deploy`**: job này chỉ chạy khi job `test` xanh (`needs: test`) và chỉ với push lên `main` (PR không bao giờ deploy). Chưa có secret thì job chỉ in cảnh báo và **không làm CI đỏ**.
+
+File để **ngoài** `.github/workflows/` nên hiện **chưa chạy**. Muốn dùng:
+1. Render → Settings → Build & Deploy: **Auto-Deploy = Off** (để không deploy hai lần), copy **Deploy Hook URL**.
+2. GitHub → Settings → Secrets and variables → Actions → **New repository secret**: tên `RENDER_DEPLOY_HOOK`, giá trị là URL vừa copy.
+3. Thay workflow đang chạy (qua một PR):
+   ```bash
+   git switch -c ci/deploy-job
+   cp .github/ci.v2.yml .github/workflows/ci.yml
+   git commit -am "CI: deploy to Render when tests pass" && git push -u origin ci/deploy-job
+   ```
+4. Merge PR → tab Actions hiện hai job `test` → `deploy`; Render bắt đầu deploy sau khi `deploy` gọi hook.
+
+Muốn quay về cách Auto-Deploy: chép lại `ci.yml` cũ (lấy từ lịch sử Git) và bật lại Auto-Deploy = *After CI Checks Pass*.
 
 ## Sự cố hay gặp khi demo
 

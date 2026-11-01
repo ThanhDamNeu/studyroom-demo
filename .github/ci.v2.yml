@@ -1,0 +1,41 @@
+# CI + CD in one workflow (slide 30: "Optional: Deploy From ci.yml").
+#
+# This file is NOT active here: GitHub only runs files in .github/workflows/.
+# To use it:
+#   1. Render -> Settings -> Build & Deploy: set Auto-Deploy to "Off",
+#      and copy the Deploy Hook URL.
+#   2. GitHub -> Settings -> Secrets and variables -> Actions -> New repository
+#      secret: name RENDER_DEPLOY_HOOK, value = the Deploy Hook URL.
+#   3. Replace the active workflow:
+#        cp .github/ci.v2.yml .github/workflows/ci.yml
+#      and commit through a PR.
+# Do not run both versions together: one merge would deploy twice.
+
+name: CI
+on: [push, pull_request]
+
+jobs:
+  test:                       # same job name, so branch protection still finds the "test" check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: pytest -v
+
+  deploy:
+    needs: test               # starts only when "test" is green
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'   # a PR never deploys
+    runs-on: ubuntu-latest
+    concurrency: deploy-production   # two quick merges: deploys run one after the other
+    env:
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+    steps:
+      - name: Skip if the secret is not set yet
+        if: env.RENDER_DEPLOY_HOOK == ''
+        run: echo "::warning::RENDER_DEPLOY_HOOK is not set, so nothing was deployed."
+      - name: Ask Render to deploy
+        if: env.RENDER_DEPLOY_HOOK != ''
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK"
